@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    <meta name="x5-fullscreen" content="true">
+    <meta name="full-screen" content="yes">
+    <title>平衡小车控制台</title>
+    <style>
+        body {
+            font-family: "Microsoft YaHei, arial, sans-serif";
+            text-align: center;
+        }
+        #wrapper {
+            width: 300px;
+            margin: 0 auto;
+            padding-bottom: 100px;
+        }
+        #circle {
+            position: relative;
+            width:300px;
+            height:300px;
+            background-color:#4BBCFF;
+            border-radius:50%;
+            margin: 0 auto;
+        }
+        #point {
+            width:50px;
+            height:50px;
+            border-radius:50%;
+            background-color: #dddddd;
+            margin: 0 auto;
+            position: relative;
+            top: 125px;
+            cursor: move;
+        }
+        #x-axis {
+            position: absolute;
+            width: 100%;
+            height: 50%;
+            border-bottom: 1px #fff solid;
+        }
+        #y-axis {
+            position: absolute;
+            width: 50%;
+            height: 100%;
+            border-right: 1px #fff solid;
+        }
+    </style>
+</head>
+<body>
+<div id="wrapper">
+    <h1>平衡小车控制台</h1>
+
+    <button onclick="ws.connect()">连接</button>
+    <button onclick="ws.close()">关闭</button>
+    状态：<span id="ws-status"></span>
+    <br /><br />
+    <table style="text-align: center">
+        <tr>
+            <th width="60px"></th>
+            <th width="60px">左</th>
+            <th width="60px">右</th>
+        </tr>
+        <tr>
+            <th style="text-align: left">PWM</th>
+            <td id="pwm-left">0</td>
+            <td id="pwm-right">0</td>
+        </tr>
+    </table>
+    <br />
+    <table style="text-align: center">
+        <tr>
+            <th style="text-align: left">平衡倾角</th>
+            <td id="balance-angle" width="80px">0</td>
+        </tr>
+        <tr>
+            <th>平衡角速度</th>
+            <td id="balance-gyro">0</td>
+        </tr>
+        <tr>
+            <th>转向角速度</th>
+            <td id="turn-gyro">0</td>
+        </tr>
+    </table>
+    <br />
+    <div id="coordinate" style="text-align: center">(0,0) 0</div>
+    <br />
+    <div id="circle"><div id="x-axis"></div><div id="y-axis"></div><div id="point"></div></div>
+    <br />
+    <button id="car-start" onclick="car.start()">开车</button>
+    <button id="car-stop" onclick="car.stop()">停车</button>
+    <p id="info">
+
+    </p>
+</div>
+<script>
+    var doc = {
+        'body': document.getElementsByTagName('body')[0],
+        'wsStatus': document.getElementById("ws-status"),
+        'sensor': {
+            'balance_angle': document.getElementById("balance-angle"),  //平衡倾角
+            'balance_gyro': document.getElementById("balance-gyro"),    //平衡角速度
+            'turn_gyro': document.getElementById("turn-gyro")           //转向角速度
+        },
+        'pwm': {
+            'left': document.getElementById("pwm-left"),
+            'right': document.getElementById("pwm-right")
+        },
+        'info': document.getElementById("info")
+    };
+    var ws = (function (doc) {
+        var ws;
+        connect();
+        function connect() {
+            /*
+                ws.readyState:
+                0        CONNECTING        连接尚未建立,正在建立
+                1        OPEN            WebSocket的链接已经建立
+                2        CLOSING            连接正在关闭
+                3        CLOSED            连接已经关闭或不可用
+            */
+            if( 'object' === typeof(ws) && ws.readyState in [0,1,2]){
+                return;
+            }
+            ws = new WebSocket("ws://"+ window.location.host + ':9000');
+            bind();
+        }
+        function bind() {
+            ws.onopen = function() {
+                doc.wsStatus.innerHTML = "已连接";
+                doc.wsStatus.style.color = "green";
+            };
+            ws.onclose = function() {
+                doc.wsStatus.innerHTML = "未连接";
+                doc.wsStatus.style.color="red";
+            };
+            ws.onmessage = function(event) {
+
+                var data = JSON.parse(event.data);
+                if('sensor' in data){
+                    doc.sensor.balance_angle.innerHTML = data['sensor'][0];
+                    doc.sensor.balance_gyro.innerHTML = data['sensor'][1];
+                    doc.sensor.turn_gyro.innerHTML = data['sensor'][2];
+                }
+                if('pwm' in data){
+                    doc.pwm.left.innerHTML = data['pwm'][0];
+                    doc.pwm.right.innerHTML = data['pwm'][1];
+                }
+                if('info' in data){
+                    doc.info.innerHTML = data['info'];
+                }
+            };
+            ws.onerror = function() {
+                doc.wsStatus.innerHTML = "出错";
+                doc.wsStatus.style.color="red";
+            };
+        }
+        function send(message) {
+            /**
+             * 发送控制信息，格式：
+             * message[0]: power
+             * message[1]: turn
+             */
+            if( 'object' === typeof(ws) && ws.readyState === 1){
+                ws.send(JSON.stringify(message));
+            }
+        }
+        function close() {
+            ws.close();
+        }
+        return {
+            'connect': connect,
+            'send': send,
+            'close': close
+        }
+    })(doc);
+
+    var joystick = (function (doc,ws) {
+        var circle_radius = 300 / 2;
+        var circle = document.getElementById("circle");
+        var point = document.getElementById("point");
+        var coordinate = document.getElementById("coordinate");
+        var joystickPower;
+        // 触摸点在大圆中以直线交点为原点的坐标系坐标
+        var X,Y;
+
+        function move(event) {
+            event = event || window.event;
+            event.preventDefault();
+            var pageX = event.pageX || event.touches[0].pageX;
+            var pageY = event.pageY || event.touches[0].pageY;
+
+             X = pageX - circle.offsetLeft - circle.clientWidth / 2;
+             Y = -(pageY - circle.offsetTop - circle.clientHeight / 2);
+
+            // 操纵杆位置到原点直线距离
+            joystickPower = Math.sqrt(Math.pow(X,2)+Math.pow(Y,2));
+
+            if(joystickPower > circle_radius){  //是否超出边界
+                var ratio = circle_radius / joystickPower;
+                X = X * ratio;
+                Y = Y * ratio;
+                joystickPower = circle_radius;
+
+            }
+
+            // 坐标系转换为窗口
+            point.style.left = X + 'px';
+            point.style.top = -Y + circle.clientHeight / 2 - point.clientHeight / 2 + 'px';
+
+            //四舍五入
+            X = Math.round(X);
+            Y = Math.round(Y);
+            joystickPower = Math.round(joystickPower);
+
+            var speed = 2 * ((Y < 0) ? -joystickPower : joystickPower);
+            coordinate.innerHTML = '(' + X + ',' + Y + ') ' + speed;
+
+            if(Y<0) X *= -1;
+            ws.send({
+                'joystick': [speed,X]
+            });
+        }
+
+        function stop() {
+            point.style.left = 0;
+            point.style.top = circle.clientHeight / 2 - point.clientHeight / 2 + 'px';
+            coordinate.innerHTML = '(0,0) 0';
+            ws.send({
+                'joystick': [0,0]
+            });
+        }
+        // 触屏设备
+        circle.addEventListener('touchstart',move, false);
+        circle.addEventListener('touchmove',move, false);
+        circle.addEventListener('touchend',stop, false);
+        // 非触屏设备
+        circle.addEventListener('mousedown',onmousedown, false);
+        doc.body.addEventListener('mouseup',onmouseup, false);
+
+        function onmousedown(event) {
+            doc.body.addEventListener('mousemove', move, false);
+            move(event);
+        }
+        function onmouseup() {
+            doc.body.removeEventListener('mousemove', move, false);
+            stop();
+        }
+    })(doc,ws);
+
+    var car = (function (ws) {
+        function start() {
+            ws.send({
+                'start': true
+            })
+        }
+        function stop() {
+            ws.send({
+                'start': false
+            })
+        }
+        return {
+            'start': start,
+            'stop': stop
+        }
+    })(ws);
+
+</script>
+</body>
+
+</html>
