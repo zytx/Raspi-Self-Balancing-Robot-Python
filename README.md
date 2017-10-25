@@ -19,6 +19,7 @@ python3 robot.py
 <img src="docs/img/remote.png" alt="Remote" width="300px" />
 
 ## MyRaspiRobot
+![Top](docs/img/top.jpg)
 ![Front](docs/img/front.jpg)
 ![Back](docs/img/back.jpg)
 
