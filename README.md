@@ -1,6 +1,9 @@
 # Raspi-Self-Balancing-Robot-Python
 基于Raspberry Pi 2 的二轮自平衡机器人，Python版
 
+- YouTube: https://youtu.be/Iy6EtryPsHQ
+- 优酷: http://v.youku.com/v_show/id_XMzEwOTY0ODMxMg
+
 ## 用法
 环境
 ```
