@@ -46,6 +46,29 @@
             height: 100%;
             border-right: 1px #fff solid;
         }
+        #pid {
+            text-align: center;
+        }
+        #pid td{
+            height: 30px;
+        }
+        #pid input {
+            width: 70%;
+            height: 100%;
+        }
+        #pid td span {
+            width: 23%;
+            height: 100%;
+            float: right;
+        }
+        #pid td button {
+            font-size: 10px;
+            padding: 1px;
+            width: 100%;
+            height: 50%;
+            line-height: 0;
+            float: right;
+        }
     </style>
 </head>
 <body>
@@ -93,6 +116,36 @@
     <p id="info">
 
     </p>
+    <table id="pid">
+        <tr>
+            <th></th>
+            <th width="60px">K</th>
+            <th width="60px">P</th>
+            <th width="60px">I</th>
+            <th width="60px">D</th>
+        </tr>
+        <tr>
+            <th>平衡</th>
+            <td><input type="text" id="balance-k" data-step="0.1"><span><button class="plus">+</button><button class="minus">-</button></span></td>
+            <td><input type="text" id="balance-p" data-step="0.1"><span><button class="plus">+</button><button class="minus">-</button></span></td>
+            <td></td>
+            <td><input type="text" id="balance-d" data-step="0.1"><span><button class="plus">+</button><button class="minus">-</button></span></td>
+        </tr>
+        <tr>
+            <th>速度</th>
+            <td></td>
+            <td><input type="text" id="velocity-p" data-step="0.1"><span><button class="plus">+</button><button class="minus">-</button></span></td>
+            <td><input type="text" id="velocity-i" data-step="0.001"><span><button class="plus">+</button><button class="minus">-</button></span></td>
+            <td></td>
+        </tr>
+        <tr>
+            <th>转向</th>
+            <td></td>
+            <td><input type="text" id="turn-p" data-step="0.1"><span><button class="plus">+</button><button class="minus">-</button></span></td>
+            <td></td>
+            <td><input type="text" id="turn-d" data-step="0.1"><span><button class="plus">+</button><button class="minus">-</button></span></td>
+        </tr>
+    </table>
 </div>
 <script>
     var doc = {
@@ -107,7 +160,24 @@
             'left': document.getElementById("pwm-left"),
             'right': document.getElementById("pwm-right")
         },
-        'info': document.getElementById("info")
+        'info': document.getElementById("info"),
+        'pid': {
+            'button': document.getElementById('pid').getElementsByTagName("button"),
+            'input': document.getElementById('pid').getElementsByTagName('input'),
+            'balance': {
+                'k': document.getElementById("balance-k"),
+                'p': document.getElementById("balance-p"),
+                'd': document.getElementById("balance-d")
+            },
+            'velocity': {
+                'p': document.getElementById("velocity-p"),
+                'i': document.getElementById("velocity-i")
+            },
+            'turn': {
+                'p': document.getElementById("turn-p"),
+                'd': document.getElementById("turn-d")
+            }
+        }
     };
     var ws = (function (doc) {
         var ws;
@@ -150,6 +220,15 @@
                 if('info' in data){
                     doc.info.innerHTML = data['info'];
                 }
+                if('pid' in data){
+                    doc.pid.balance.k.value = data['pid']['balance']['k'];
+                    doc.pid.balance.p.value = data['pid']['balance']['p'];
+                    doc.pid.balance.d.value = data['pid']['balance']['d'];
+                    doc.pid.velocity.p.value = data['pid']['velocity']['p'];
+                    doc.pid.velocity.i.value = data['pid']['velocity']['i'];
+                    doc.pid.turn.p.value = data['pid']['turn']['p'];
+                    doc.pid.turn.d.value = data['pid']['turn']['d']
+                }
             };
             ws.onerror = function() {
                 doc.wsStatus.innerHTML = "出错";
@@ -159,8 +238,11 @@
         function send(message) {
             /**
              * 发送控制信息，格式：
-             * message[0]: power
-             * message[1]: turn
+             * message = {
+             *      'joystick': [power, turn],
+             *      'start': 0|1
+             *      'pid': ['balance|velocity|turn', 'k|p|i|d', value]
+             * }
              */
             if( 'object' === typeof(ws) && ws.readyState === 1){
                 ws.send(JSON.stringify(message));
@@ -184,6 +266,7 @@
         var joystickPower;
         // 触摸点在大圆中以直线交点为原点的坐标系坐标
         var X,Y;
+        var move_flag = false;
 
         function move(event) {
             event = event || window.event;
@@ -218,18 +301,24 @@
             coordinate.innerHTML = '(' + X + ',' + Y + ') ' + speed;
 
             if(Y<0) X *= -1;
+            //TODO  缩短发送遥控数据频率
             ws.send({
                 'joystick': [speed,X]
             });
+            move_flag = true;
         }
 
         function stop() {
-            point.style.left = 0;
-            point.style.top = circle.clientHeight / 2 - point.clientHeight / 2 + 'px';
-            coordinate.innerHTML = '(0,0) 0';
-            ws.send({
-                'joystick': [0,0]
-            });
+            if(move_flag){
+                point.style.left = 0;
+                point.style.top = circle.clientHeight / 2 - point.clientHeight / 2 + 'px';
+                coordinate.innerHTML = '(0,0) 0';
+                ws.send({
+                    'joystick': [0,0]
+                });
+                move_flag = false;
+            }
+
         }
         // 触屏设备
         circle.addEventListener('touchstart',move, false);
@@ -249,15 +338,37 @@
         }
     })(doc,ws);
 
+    (function (doc,ws) {
+        /**
+         * PID控制器
+         */
+        for(var i = 0; i < doc.pid.button.length; i++) {
+            doc.pid.button[i].onclick = function () {
+                var input = this.parentNode.previousSibling;
+                var step = input.getAttribute("data-step");
+                var pm = 1;
+                if(this.className == 'minus') pm = -1;
+                input.value = (Number(step) * pm + Number(input.value)).toFixed(step.split('.')[1].length);
+                input.onchange();
+            };
+        }
+        for(i = 0; i < doc.pid.input.length; i++) {
+            doc.pid.input[i].onchange = function () {
+                var sp = this.id.split('-');
+                ws.send({'pid': [sp[0], sp[1], Number(this.value) ]});
+            };
+        }
+    })(doc,ws);
+
     var car = (function (ws) {
         function start() {
             ws.send({
-                'start': true
+                'start': 1
             })
         }
         function stop() {
             ws.send({
-                'start': false
+                'start': 0
             })
         }
         return {

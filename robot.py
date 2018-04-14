@@ -17,35 +17,38 @@ class Robot():
         self.encoder_left = Encoder(self.pi, settings.PINS['encoder']['left'])
         self.encoder_right = Encoder(self.pi, settings.PINS['encoder']['right'])
         self.mpu = MPU6050(self.pi, 0x68)
-        self.remote = RemoteControlServer()
+        self.remote = RemoteControlServer(settings.pid_params)
         self.pid = PID()
 
     def run(self):
         self.remote.start()
         pwm_velocity = pwm_turn = 0
-        counter_remote = counter_velocity = counter_turn =0
-        while (True):
+        counter_remote = counter_velocity = counter_turn = 0
+        while True:
             begin_time = datetime.datetime.now()
             if self.remote.received['start']:
                 self.mpu.update()
                 # 平衡环
-                pwm_balance = self.pid.get_balance_pwm(self.mpu.balance_angle,
+                pwm_balance = self.pid.get_balance_pwm(self.remote.received['pid']['balance'],
+                                                       self.mpu.balance_angle,
                                                        self.mpu.balance_gyro)
                 # 速度环，八个周期执行一次
                 if counter_velocity >= 8:
-                    pwm_velocity = self.pid.get_velocity_pwm(self.encoder_left.speed,
-                                                         -self.encoder_right.speed,
-                                                         self.remote.received['joystick'][0])
+                    pwm_velocity = self.pid.get_velocity_pwm(self.remote.received['pid']['velocity'],
+                                                             self.encoder_left.speed,
+                                                             -self.encoder_right.speed,
+                                                             self.remote.received['joystick'][0])
                     self.encoder_left.speed = 0
                     self.encoder_right.speed = 0
                     counter_velocity = 0
                 counter_velocity += 1
                 # 转向环，四个周期执行一次
                 if counter_turn >= 0:
-                    pwm_turn = self.pid.get_turn_pwm(self.mpu.gyro['z'],
-                                                 self.remote.received['joystick'][1])
+                    pwm_turn = self.pid.get_turn_pwm(self.remote.received['pid']['turn'],
+                                                     self.mpu.gyro['z'],
+                                                     self.remote.received['joystick'][1])
                     counter_turn = 0
-                counter_turn +=1
+                counter_turn += 1
 
                 # 小车倒下停车
                 if self.mpu.balance_angle > 40 or self.mpu.balance_angle < -40:

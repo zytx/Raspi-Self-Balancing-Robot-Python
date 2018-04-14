@@ -38,13 +38,14 @@ class RemoteControlServer(Thread, WebsocketServer):
     """
     远程控制类，通过WebSocket通信
     """
-    def __init__(self, host='0.0.0.0', http_port=80, websocket_port=9000):
-        WebsocketServer.__init__(self, host = host, port = websocket_port)
+    def __init__(self, pid_params, host='0.0.0.0', http_port=80, websocket_port=9000):
+        WebsocketServer.__init__(self, host=host, port=websocket_port)
         Thread.__init__(self)
-        self.httpd = HttpdThread(host = host, port = http_port)
+        self.httpd = HttpdThread(host=host, port=http_port)
         self.received = {
             'joystick': [0, 0],
-            'start': True
+            'start': 1,
+            'pid': pid_params
         }
         self.daemon = True
 
@@ -81,9 +82,11 @@ class RemoteControlServer(Thread, WebsocketServer):
     def message_received(self, client, server, message):
         """
         接收数据后解码json信息
-        :param message: list
-                message[0]: power
-                message[1]: turn
+        :param message: {
+                  'joystick': [power, turn],
+                  'start': 0|1
+                  'pid': ['balance|velocity|turn', 'k|p|i|d', value]
+                }
         """
         data = json.loads(message)
         if 'joystick' in data:
@@ -91,6 +94,20 @@ class RemoteControlServer(Thread, WebsocketServer):
             self.received['joystick'][1] = data["joystick"][1]     # turn
         if 'start' in data:
             self.received['start'] = data["start"]
+        if 'pid' in data:
+            self.received['pid'][data["pid"][0]][data["pid"][1]] = data['pid'][2]
+
+    def new_client(self, client, server):
+        """
+        新客户端回调函数
+        :param client:
+        :param server:
+        :return:
+        """
+        # 初始化客户端PID参数
+        self.send_message(client, json.dumps({
+            'pid': self.received['pid']
+        }))
 
 
 if __name__ == '__main__':
@@ -99,11 +116,8 @@ if __name__ == '__main__':
     """
     import time
     import random
-    received = {
-        'power': 0,
-        'turn': 0
-    }
-    server = RemoteControlServer(host='0.0.0.0', http_port=80, websocket_port=9000)
+    from settings import pid_params
+    server = RemoteControlServer(pid_params, host='0.0.0.0', http_port=80, websocket_port=9000)
     server.start()
 
     while True:
