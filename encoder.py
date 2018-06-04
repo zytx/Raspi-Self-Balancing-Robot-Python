@@ -1,7 +1,7 @@
 import pigpio
 
 
-class Encoder():
+class Encoder:
 
     def __init__(self, pi, pins):
         self.pi = pi

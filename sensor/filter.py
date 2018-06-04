@@ -1,6 +1,7 @@
 import datetime
 
-class KalmanFilter():
+
+class KalmanFilter:
 
     def __init__(self):
         self.Q_angle = 0.001
@@ -10,8 +11,8 @@ class KalmanFilter():
         self.angle = 0.0
         self.bias = 0.0
         self.P = [
-            [0,0],
-            [0,0]
+            [0, 0],
+            [0, 0]
         ]
 
         self.lastTime = datetime.datetime.now()

@@ -25,6 +25,3 @@ python3 robot.py
 ![Top](docs/img/top.jpg)
 ![Front](docs/img/front.jpg)
 ![Back](docs/img/back.jpg)
-
-## TODO
-- 远程调整PID参数

@@ -303,7 +303,7 @@
             if(Y<0) X *= -1;
             //TODO  缩短发送遥控数据频率
             ws.send({
-                'joystick': [speed,X]
+                'joystick': [speed * 2,X]
             });
             move_flag = true;
         }

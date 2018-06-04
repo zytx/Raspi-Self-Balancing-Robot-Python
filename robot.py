@@ -9,7 +9,7 @@ from pid import PID
 import settings
 
 
-class Robot():
+class Robot:
     def __init__(self):
         self.pi = pigpio.pi()
         self.motor_left = Motor(self.pi, settings.PINS['motor']['left'])
@@ -30,20 +30,21 @@ class Robot():
                 self.mpu.update()
                 # 平衡环
                 pwm_balance = self.pid.get_balance_pwm(self.remote.received['pid']['balance'],
-                                                       self.mpu.balance_angle,
+                                                       self.mpu.balance_angle + 1,
                                                        self.mpu.balance_gyro)
                 # 速度环，八个周期执行一次
-                if counter_velocity >= 8:
+                if counter_velocity >= 2:
                     pwm_velocity = self.pid.get_velocity_pwm(self.remote.received['pid']['velocity'],
                                                              self.encoder_left.speed,
                                                              -self.encoder_right.speed,
                                                              self.remote.received['joystick'][0])
+                    print(self.encoder_left.speed, self.encoder_right.speed)
                     self.encoder_left.speed = 0
                     self.encoder_right.speed = 0
                     counter_velocity = 0
                 counter_velocity += 1
                 # 转向环，四个周期执行一次
-                if counter_turn >= 0:
+                if counter_turn >= 4:
                     pwm_turn = self.pid.get_turn_pwm(self.remote.received['pid']['turn'],
                                                      self.mpu.gyro['z'],
                                                      self.remote.received['joystick'][1])

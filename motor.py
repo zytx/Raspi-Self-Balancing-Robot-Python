@@ -1,9 +1,9 @@
 import pigpio
 
 
-class Motor():
+class Motor:
 
-    def __init__(self, pi, motorpins, pwm_range = 255):
+    def __init__(self, pi, motorpins, pwm_range=255):
         self.pi = pi
         self.pins = motorpins
         self.speed = 0
@@ -23,7 +23,7 @@ class Motor():
         """
         pwm = int(-self.pwm_range if pwm < -self.pwm_range else self.pwm_range if pwm > self.pwm_range else pwm)
 
-        if(pwm < 0):
+        if pwm < 0:
             self.pi.set_PWM_dutycycle(self.pins[0], -pwm)
             self.pi.set_PWM_dutycycle(self.pins[1], 0)
         else:
@@ -33,6 +33,3 @@ class Motor():
     def stop(self):
         for pin in self.pins:
             self.pi.set_PWM_dutycycle(pin, 0)
-
-
-

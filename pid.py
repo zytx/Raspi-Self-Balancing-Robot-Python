@@ -1,6 +1,6 @@
 class PID:
 
-    def __init__(self, limit_velocity=10000, limit_turn=150):
+    def __init__(self, limit_velocity=1700, limit_turn=150):
         """
         PID 控制类
         :param limit_velocity: number 速度环限幅
@@ -24,11 +24,12 @@ class PID:
         self.velocity['encoder_integral'] = self.velocity['encoder_integral'] - movement       # 接收遥控器数据，控制前进后退
 
         # 没有遥控数据时加速停止过程
+        print(self.velocity['encoder_integral'])
         if movement == 0:
-            if self.velocity['encoder_integral'] > 1000:
-                self.velocity['encoder_integral'] -= 500
-            elif self.velocity['encoder_integral'] < -1000:
-                self.velocity['encoder_integral'] += 500
+            if self.velocity['encoder_integral'] > 300:
+                self.velocity['encoder_integral'] -= 100
+            elif self.velocity['encoder_integral'] < -300:
+                self.velocity['encoder_integral'] += 100
 
         # 限制最大速度
         if self.velocity['encoder_integral'] > self.limit_velocity:
